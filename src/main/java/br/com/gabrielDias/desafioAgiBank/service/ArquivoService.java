@@ -9,8 +9,11 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -43,9 +46,11 @@ public class ArquivoService {
 				Stream<String> linhas = reader.lines();
 
 				linhas.forEach(linha -> criarArquivo(venderores, clientes, vendas, linha));
-				Files.write(Paths
-						.get(System.getenv(Constantes.HOMEPATH).concat(Constantes.DATA_OUTPUT).concat("Done_").concat(arquivo.getName())),
+				Files.write(
+						Paths.get(System.getenv(Constantes.HOMEPATH).concat(Constantes.DATA_OUTPUT)
+								.concat(arquivo.getName().replace(".dat","")).concat(".done.dat")),
 						criarResposta(venderores, clientes, vendas).getBytes());
+
 				venderores.clear();
 				clientes.clear();
 				vendas.clear();
@@ -54,12 +59,12 @@ public class ArquivoService {
 				log.error("Erro ao verificar arquivo - Erro: {}", e.getMessage(), e);
 			}
 		});
-	log.info("ArquivoService.verificarArquivo - End");
+		log.info("ArquivoService.verificarArquivo - End");
 
 	}
 
-	private void criarArquivo(List<Vendedor> venderores, List<Cliente> clientes, List<Venda> vendas,String linha) {
-		
+	private void criarArquivo(List<Vendedor> venderores, List<Cliente> clientes, List<Venda> vendas, String linha) {
+
 		String[] splitFileLine = linha.split(Constantes.SEPARATOR);
 		if (splitFileLine[0].equals(Constantes.VENDEDOR_ID) && splitFileLine.length >= 4) {
 			venderores.add(new Vendedor(splitFileLine[1], splitFileLine[2], Double.parseDouble(splitFileLine[3])));
@@ -86,7 +91,7 @@ public class ArquivoService {
 
 		File diretorio = new File(System.getenv(Constantes.HOMEPATH).concat(Constantes.DATA_INPUT));
 		if (diretorio.exists() && diretorio.isDirectory()) {
-			FileFilter filter = arquivo -> arquivo.getName().endsWith(".txt");
+			FileFilter filter = arquivo -> arquivo.getName().endsWith(".dat");
 			return Arrays.asList(diretorio.listFiles(filter));
 		} else {
 			log.error("Diretorio nao encontrado");
@@ -95,16 +100,19 @@ public class ArquivoService {
 	}
 
 	private String criarResposta(List<Vendedor> vendedores, List<Cliente> clientes, List<Venda> vendas) {
+		
+		Map<String, Double> mapVendas = vendas.stream().collect(Collectors.toMap(a -> a.getId(),
+				venda -> venda.getItems().stream().mapToDouble(item -> item.getPreco()).sum()));
+		
+		Entry<String, Double> max = Collections.max(mapVendas.entrySet(),Comparator.comparing(Entry::getValue));
+		Entry<String, Double> min = Collections.min(mapVendas.entrySet(),Comparator.comparing(Entry::getValue));
+		
 		String quantidadeCliente = "Quantidade de clientes no arquivo de entrada: " + clientes.size();
 		String quantidadeVendedor = "Quantidade de vendedor no arquivo de entrada: " + vendedores.size();
-		Map<String, Double> collect = vendas.stream().collect(Collectors.toMap(a -> a.getId(),
-				venda -> venda.getItems().stream().mapToDouble(item -> item.getPreco()).sum()));
-		String vendaId = collect.entrySet().stream()
-				.max((entry1, entry2) -> entry1.getValue() > entry2.getValue() ? 1 : -1).get().getKey();
-		String vendaMaisCara = "ID da venda mais cara: " + vendaId;
-		String piorVendedor = "O pior vendedor: " + "";
+		String vendaMaisCara = "ID da venda mais cara: " + max.getKey();
+		String piorVendedor = "O pior vendedor: " + vendas.stream().filter(venda -> venda.getId().equals(min.getKey())).findFirst().get().getNomeVendedor();
+		
 		return quantidadeCliente + "\n" + quantidadeVendedor + "\n" + vendaMaisCara + "\n" + piorVendedor;
 	}
-	
-	
+
 }
